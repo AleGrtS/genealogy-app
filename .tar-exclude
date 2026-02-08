@@ -1,0 +1,33 @@
+# Список исключаемых файлов/папок
+node_modules
+*.log
+*.sqlite
+uploads/*
+logs/*
+backups/*
+*.swp
+*.swo
+.DS_Store
+.git
+.gitignore
+
+
+## 3. Создадим архив проекта:
+
+```bash
+# Создадим директорию для архива
+mkdir -p ~/backups
+
+# Создаем архив без node_modules и ненужных файлов
+cd /var/www/genealogy-app
+
+
+# Создаем архив
+tar --exclude-from=.tar-exclude -czvf ~/backups/genealogy-app-v1.0.0-$(date +%Y%m%d).tar.gz .
+
+# Проверяем размер архива
+ls -lh ~/backups/genealogy-app-v1.0.0-*.tar.gz
+
+# Создаем также zip архив
+zip -r ~/backups/genealogy-app-v1.0.0-$(date +%Y%m%d).zip . -x "node_modules/*" "*.log" "*.sqlite" "uploads/*" "logs/*" "backups/*"
+
