@@ -1,0 +1,71 @@
+import { DataTypes, Model } from 'sequelize';
+import sequelize from '../config/database';
+
+class Photo extends Model {
+  public id!: string;
+  public personId!: number;
+  public filename!: string;
+  public originalName!: string;
+  public path!: string;
+  public thumbnailPath!: string;
+  public size!: number;
+  public mimeType!: string;
+  public isMain!: boolean;
+  public caption?: string;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+Photo.init({
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true,
+  },
+  personId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'persons',
+      key: 'id',
+    },
+  },
+  filename: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  originalName: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  path: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  thumbnailPath: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  size: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  mimeType: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  isMain: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  caption: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+}, {
+  sequelize,
+  tableName: 'photos',
+  timestamps: true, // Это создаст createdAt и updatedAt автоматически
+});
+
+export default Photo;
