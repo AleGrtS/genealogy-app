@@ -1,12 +1,17 @@
 import { useState, useEffect } from 'react';
 import type { Person, Relationship } from './services/api';
 import { personApi, relationshipApi } from './services/api';
+import EditPersonModal from './components/EditPersonModal';
 
 function App() {
   const [persons, setPersons] = useState<Person[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'persons' | 'relationships'>('persons');
+  
+  // Модальное окно редактирования
+  const [editingPerson, setEditingPerson] = useState<Person | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   // Форма для создания отношения
   const [newRelationship, setNewRelationship] = useState({
@@ -17,18 +22,21 @@ function App() {
 
   const loadData = async () => {
     try {
+      setLoading(true);
       console.log('Загрузка данных...');
       
       // Загружаем людей
       const personsResponse = await personApi.getAll();
       if (personsResponse.data.success) {
         setPersons(personsResponse.data.data);
+        console.log('Люди загружены:', personsResponse.data.data.length);
       }
       
       // Загружаем отношения
       const relationshipsResponse = await relationshipApi.getAll();
       if (relationshipsResponse.data.success) {
         setRelationships(relationshipsResponse.data.data);
+        console.log('Отношения загружены:', relationshipsResponse.data.data.length);
       }
       
     } catch (error: any) {
@@ -55,11 +63,12 @@ function App() {
         isAlive: true,
       };
       
+      console.log('Добавление человека:', personData);
       await personApi.create(personData);
       await loadData(); // Перезагружаем данные
       
     } catch (error) {
-      console.error('Ошибка:', error);
+      console.error('Ошибка добавления:', error);
     }
   };
 
@@ -75,6 +84,7 @@ function App() {
     }
     
     try {
+      console.log('Создание отношения:', newRelationship);
       await relationshipApi.create({
         person1Id: parseInt(newRelationship.person1Id),
         person2Id: parseInt(newRelationship.person2Id),
@@ -94,7 +104,7 @@ function App() {
       alert('Отношение успешно создано!');
       
     } catch (error: any) {
-      console.error('Ошибка:', error);
+      console.error('Ошибка создания отношения:', error);
       alert(`Ошибка: ${error.response?.data?.message || error.message}`);
     }
   };
@@ -103,11 +113,37 @@ function App() {
     if (!confirm('Удалить это отношение?')) return;
     
     try {
+      console.log('Удаление отношения ID:', id);
       await relationshipApi.delete(id);
-      await loadData();
+      await loadData(); // Перезагружаем данные
       alert('Отношение удалено!');
-    } catch (error) {
-      console.error('Ошибка:', error);
+    } catch (error: any) {
+      console.error('Ошибка удаления отношения:', error);
+      alert(`Ошибка: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
+  const deletePerson = async (id: number) => {
+    if (!confirm('Удалить этого человека и все его отношения?')) return;
+    
+    try {
+      console.log('Удаление человека ID:', id);
+      const response = await personApi.delete(id);
+      console.log('Ответ от API:', response.data);
+      
+      if (response.data.success) {
+        // Удаляем человека из состояния сразу
+        setPersons(prev => prev.filter(p => p.id !== id));
+        // Перезагружаем отношения
+        await loadData();
+        alert('Человек удален!');
+      } else {
+        alert('Ошибка удаления: ' + response.data.message);
+      }
+      
+    } catch (error: any) {
+      console.error('Ошибка удаления человека:', error);
+      alert(`Ошибка: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -126,15 +162,33 @@ function App() {
     }
   };
 
+  // Функции для редактирования
+  const handleEditPerson = (person: Person) => {
+    setEditingPerson(person);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSavePerson = async () => {
+    await loadData(); // Перезагружаем данные после сохранения
+  };
+
   if (loading) {
-    return <div style={{ padding: '20px' }}>Загрузка данных...</div>;
+    return (
+      <div style={{ 
+        padding: '40px', 
+        textAlign: 'center',
+        fontSize: '18px'
+      }}>
+        Загрузка данных...
+      </div>
+    );
   }
 
   return (
     <div style={{ 
       padding: '20px', 
       fontFamily: 'Arial, sans-serif',
-      maxWidth: '1200px',
+      maxWidth: '1400px',
       margin: '0 auto'
     }}>
       <h1 style={{ color: '#2e7d32', marginBottom: '10px' }}>🌳 Genealogy App</h1>
@@ -188,19 +242,34 @@ function App() {
             marginBottom: '20px'
           }}>
             <h2>Управление людьми</h2>
-            <button 
-              onClick={addTestPerson}
-              style={{
-                padding: '10px 20px',
-                background: '#2196F3',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              + Добавить тестового человека
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                onClick={addTestPerson}
+                style={{
+                  padding: '10px 20px',
+                  background: '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                + Добавить тестового человека
+              </button>
+              <button 
+                onClick={loadData}
+                style={{
+                  padding: '10px 20px',
+                  background: '#FF9800',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                🔄 Обновить
+              </button>
+            </div>
           </div>
 
           {persons.length === 0 ? (
@@ -216,27 +285,115 @@ function App() {
           ) : (
             <div style={{ 
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
               gap: '20px'
             }}>
               {persons.map(person => (
                 <div 
                   key={person.id}
                   style={{
-                    padding: '15px',
+                    padding: '20px',
                     background: '#f5f5f5',
                     borderRadius: '8px',
-                    border: '1px solid #ddd'
+                    border: '1px solid #ddd',
+                    position: 'relative'
                   }}
                 >
-                  <h3 style={{ marginBottom: '10px' }}>
-                    {person.firstName} {person.lastName}
+                  {/* Действия с карточкой */}
+                  <div style={{
+                    position: 'absolute',
+                    top: '15px',
+                    right: '15px',
+                    display: 'flex',
+                    gap: '10px'
+                  }}>
+                    <button
+                      onClick={() => handleEditPerson(person)}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#4CAF50',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                      title="Редактировать"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => deletePerson(person.id)}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#f44336',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                      title="Удалить"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+
+                  <h3 style={{ marginBottom: '10px', paddingRight: '80px' }}>
+                    {person.firstName} {person.middleName || ''} {person.lastName}
                   </h3>
+                  
                   <div style={{ fontSize: '14px', color: '#666' }}>
                     <p><strong>ID:</strong> {person.id}</p>
                     <p><strong>Пол:</strong> {person.gender === 'male' ? '♂ Мужской' : person.gender === 'female' ? '♀ Женский' : 'Не указан'}</p>
-                    <p><strong>Статус:</strong> {person.isAlive ? 'Жив' : 'Умер'}</p>
-                    <p><strong>Добавлен:</strong> {new Date(person.createdAt).toLocaleDateString('ru-RU')}</p>
+                    <p><strong>Статус:</strong> 
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        background: person.isAlive ? '#c8e6c9' : '#ffcdd2',
+                        color: person.isAlive ? '#2e7d32' : '#c62828',
+                        marginLeft: '8px',
+                        fontSize: '12px'
+                      }}>
+                        {person.isAlive ? 'Жив/а' : 'Умер/ла'}
+                      </span>
+                    </p>
+                    
+                    {person.birthDate && (
+                      <p><strong>Родился:</strong> {new Date(person.birthDate).toLocaleDateString('ru-RU')}</p>
+                    )}
+                    
+                    {person.birthPlace && (
+                      <p><strong>Место рождения:</strong> {person.birthPlace}</p>
+                    )}
+                    
+                    {person.deathDate && (
+                      <p><strong>Умер:</strong> {new Date(person.deathDate).toLocaleDateString('ru-RU')}</p>
+                    )}
+                    
+                    {person.biography && (
+                      <div style={{ 
+                        marginTop: '10px', 
+                        padding: '10px',
+                        background: 'white',
+                        borderRadius: '4px',
+                        border: '1px solid #eee'
+                      }}>
+                        <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.4' }}>
+                          {person.biography.length > 100 
+                            ? `${person.biography.substring(0, 100)}...` 
+                            : person.biography}
+                        </p>
+                      </div>
+                    )}
+                    
+                    <p style={{ marginTop: '10px', fontSize: '12px', color: '#999' }}>
+                      <strong>Добавлен:</strong> {new Date(person.createdAt).toLocaleDateString('ru-RU')}
+                      {person.updatedAt !== person.createdAt && (
+                        <span> (обновлен: {new Date(person.updatedAt).toLocaleDateString('ru-RU')})</span>
+                      )}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -245,7 +402,27 @@ function App() {
         </div>
       ) : (
         <div>
-          <h2 style={{ marginBottom: '20px' }}>Управление отношениями</h2>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px'
+          }}>
+            <h2>Управление отношениями</h2>
+            <button 
+              onClick={loadData}
+              style={{
+                padding: '10px 20px',
+                background: '#FF9800',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              🔄 Обновить
+            </button>
+          </div>
           
           {/* Форма создания отношения */}
           <div style={{ 
@@ -438,6 +615,14 @@ function App() {
         </div>
       )}
 
+      {/* Модальное окно редактирования */}
+      <EditPersonModal
+        person={editingPerson}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleSavePerson}
+      />
+
       {/* Информационная панель */}
       <div style={{ 
         marginTop: '40px', 
@@ -464,21 +649,7 @@ function App() {
             <p>✅ /api/relationships</p>
           </div>
           <div>
-            <p style={{ fontWeight: 'bold', color: '#333' }}>Действия</p>
-            <button 
-              onClick={loadData}
-              style={{
-                padding: '8px 16px',
-                background: '#2196F3',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                marginRight: '10px'
-              }}
-            >
-              Обновить данные
-            </button>
+            <p style={{ fontWeight: 'bold', color: '#333' }}>Отладка</p>
             <button 
               onClick={() => {
                 console.log('Persons:', persons);
@@ -498,6 +669,27 @@ function App() {
             </button>
           </div>
         </div>
+        
+        <div style={{ 
+          marginTop: '20px', 
+          paddingTop: '15px', 
+          borderTop: '1px solid #ddd',
+          fontSize: '14px',
+          color: '#666'
+        }}>
+          <p><strong>Отладка:</strong> Откройте консоль браузера (F12) для просмотра логов операций.</p>
+        </div>
+      </div>
+      
+      <div style={{ 
+        marginTop: '20px', 
+        textAlign: 'center',
+        fontSize: '12px',
+        color: '#999',
+        padding: '15px',
+        borderTop: '1px solid #eee'
+      }}>
+        <p>Genealogy App v0.3.1 • Редактирование и удаление • {new Date().toLocaleDateString('ru-RU')}</p>
       </div>
     </div>
   );

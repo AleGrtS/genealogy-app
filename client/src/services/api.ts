@@ -70,6 +70,4 @@ export const relationshipApi = {
   delete: (id: number) => api.delete<ApiResponse<void>>(`/relationships/${id}`),
 };
 
-// Экспортируем всё явно для избежания ошибок
 export default api;
-export type { Person, Relationship, RelationshipType, ApiResponse };
