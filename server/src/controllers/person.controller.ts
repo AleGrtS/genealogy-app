@@ -1,123 +1,133 @@
 import { Request, Response } from 'express';
 import Person from '../models/Person';
 
+// Получить всех людей
 export const getAllPersons = async (req: Request, res: Response): Promise<void> => {
   try {
     const persons = await Person.findAll({
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
     });
-    
     res.json({
       success: true,
       count: persons.length,
-      data: persons
+      data: persons,
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      message: 'Error fetching persons',
-      error: error.message
+      message: 'Ошибка получения данных',
+      error: error.message,
     });
   }
 };
 
-export const createPerson = async (req: Request, res: Response): Promise<void> => {
+// Получить человека по ID
+export const getPersonById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { firstName, lastName, gender, birthDate, birthPlace, biography } = req.body;
+    const { id } = req.params;
+    const person = await Person.findByPk(id);
     
-    if (!firstName || !lastName) {
-      res.status(400).json({
+    if (!person) {
+      res.status(404).json({
         success: false,
-        message: 'First name and last name are required'
+        message: 'Человек не найден',
       });
       return;
     }
     
-    const person = await Person.create({
-      firstName,
-      lastName,
-      gender: gender || 'unknown',
-      birthDate,
-      birthPlace,
-      biography,
-      isAlive: true
-    } as any); // Используем as any для обхода проверки типов
+    res.json({
+      success: true,
+      data: person,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Ошибка получения данных',
+      error: error.message,
+    });
+  }
+};
+
+// Создать нового человека
+export const createPerson = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const personData = req.body;
+    
+    // Проверяем обязательные поля
+    if (!personData.firstName || !personData.lastName) {
+      res.status(400).json({
+        success: false,
+        message: 'Имя и фамилия обязательны',
+      });
+      return;
+    }
+    
+    const person = await Person.create(personData);
     
     res.status(201).json({
       success: true,
-      message: 'Person created successfully',
-      data: person
+      message: 'Человек создан успешно',
+      data: person,
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      message: 'Error creating person',
-      error: error.message
+      message: 'Ошибка создания человека',
+      error: error.message,
     });
   }
 };
 
-export const getPersonById = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const person = await Person.findByPk(req.params.id);
-    
-    if (!person) {
-      res.status(404).json({
-        success: false,
-        message: 'Person not found'
-      });
-      return;
-    }
-    
-    res.json({
-      success: true,
-      data: person
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching person',
-      error: error.message
-    });
-  }
-};
-
+// Обновить человека
 export const updatePerson = async (req: Request, res: Response): Promise<void> => {
   try {
-    const person = await Person.findByPk(req.params.id);
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    console.log('🔄 Обновление человека ID:', id, 'Данные:', updateData);
+    
+    const person = await Person.findByPk(id);
     
     if (!person) {
       res.status(404).json({
         success: false,
-        message: 'Person not found'
+        message: 'Человек не найден',
       });
       return;
     }
     
-    await person.update(req.body);
+    // Обновляем поля
+    await person.update(updateData);
+    
+    // Получаем обновленную запись
+    const updatedPerson = await Person.findByPk(id);
     
     res.json({
       success: true,
-      message: 'Person updated successfully',
-      data: person
+      message: 'Данные обновлены успешно',
+      data: updatedPerson,
     });
   } catch (error: any) {
+    console.error('❌ Ошибка обновления:', error.message);
     res.status(500).json({
       success: false,
-      message: 'Error updating person',
-      error: error.message
+      message: 'Ошибка обновления данных',
+      error: error.message,
     });
   }
 };
 
+// Удалить человека
 export const deletePerson = async (req: Request, res: Response): Promise<void> => {
   try {
-    const person = await Person.findByPk(req.params.id);
+    const { id } = req.params;
+    
+    const person = await Person.findByPk(id);
     
     if (!person) {
       res.status(404).json({
         success: false,
-        message: 'Person not found'
+        message: 'Человек не найден',
       });
       return;
     }
@@ -126,13 +136,13 @@ export const deletePerson = async (req: Request, res: Response): Promise<void> =
     
     res.json({
       success: true,
-      message: 'Person deleted successfully'
+      message: 'Человек удален успешно',
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      message: 'Error deleting person',
-      error: error.message
+      message: 'Ошибка удаления',
+      error: error.message,
     });
   }
 };
