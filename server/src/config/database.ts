@@ -1,14 +1,20 @@
 import { Sequelize } from 'sequelize';
 import path from 'path';
 
-// Четкий путь к базе
-const dbPath = path.resolve('/var/www/genealogy-app/database.sqlite');
-console.log('📁 Database:', dbPath);
+const databasePath = path.join(__dirname, '../../database.sqlite');
+console.log('📁 Database:', databasePath);
 
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: dbPath,
-  logging: (sql) => console.log(`[SQL] ${sql}`),
+  storage: databasePath,
+  logging: (sql) => console.log('[SQL]', sql),
+  define: {
+    timestamps: true,
+    underscored: false,
+    freezeTableName: false
+  },
+  // Отключаем автоматическую синхронизацию
+  sync: { force: false, alter: false }
 });
 
 export default sequelize;

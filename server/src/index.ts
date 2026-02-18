@@ -1,11 +1,14 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import sequelize from './config/database';
 import './models/Person';
 import './models/Relationship';
+import './models/Photo';
 import personRoutes from './routes/person.routes';
 import relationshipRoutes from './routes/relationship.routes';
+import photoRoutes from './routes/photo.routes';
 
 dotenv.config();
 
@@ -19,9 +22,13 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Статические файлы (для загруженных фото)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // API Routes
 app.use('/api/persons', personRoutes);
 app.use('/api/relationships', relationshipRoutes);
+app.use('/api/photos', photoRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -30,7 +37,7 @@ app.get('/api/health', (req, res) => {
     service: 'Genealogy API',
     timestamp: new Date().toISOString(),
     database: 'SQLite',
-    features: ['Persons CRUD', 'Relationships'],
+    features: ['Persons CRUD', 'Relationships', 'Photos'],
   });
 });
 
@@ -40,7 +47,8 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('✅ Database connected');
     
-    await sequelize.sync({ force: false });
+    // Синхронизируем модели (создаем таблицы если их нет)
+    await sequelize.sync({ alter: true });
     console.log('✅ Database synchronized');
     
     app.listen(PORT, () => {
@@ -52,6 +60,8 @@ const startServer = async () => {
       📊 Endpoints:
          Persons:    /api/persons
          Relationships: /api/relationships
+         Photos:     /api/photos
+         Uploads:    /uploads/[filename]
          Health:     /api/health
       ===============================
       `);

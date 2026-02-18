@@ -2,12 +2,17 @@ import { useState, useEffect } from 'react';
 import type { Person, Relationship } from './services/api';
 import { personApi, relationshipApi } from './services/api';
 import EditPersonModal from './components/EditPersonModal';
+import FamilyTree from './components/FamilyTree';
+import SearchBar from './components/SearchBar';
+import PersonList from './components/PersonList';
 
 function App() {
   const [persons, setPersons] = useState<Person[]>([]);
+  const [filteredPersons, setFilteredPersons] = useState<Person[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'persons' | 'relationships'>('persons');
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'persons' | 'relationships' | 'tree'>('persons');
   
   // Модальное окно редактирования
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
@@ -22,26 +27,34 @@ function App() {
 
   const loadData = async () => {
     try {
+      setError(null);
       setLoading(true);
       console.log('Загрузка данных...');
       
+      // Проверим соединение с backend
+      const healthCheck = await fetch('http://localhost:3001/api/health');
+      console.log('Health check:', healthCheck.status);
+      
       // Загружаем людей
       const personsResponse = await personApi.getAll();
+      console.log('Persons response:', personsResponse.data);
+      
       if (personsResponse.data.success) {
         setPersons(personsResponse.data.data);
-        console.log('Люди загружены:', personsResponse.data.data.length);
+        setFilteredPersons(personsResponse.data.data);
       }
       
       // Загружаем отношения
       const relationshipsResponse = await relationshipApi.getAll();
+      console.log('Relationships response:', relationshipsResponse.data);
+      
       if (relationshipsResponse.data.success) {
         setRelationships(relationshipsResponse.data.data);
-        console.log('Отношения загружены:', relationshipsResponse.data.data.length);
       }
       
     } catch (error: any) {
       console.error('Ошибка загрузки:', error);
-      alert(`Ошибка: ${error.message}`);
+      setError(`Ошибка подключения к серверу: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -63,12 +76,12 @@ function App() {
         isAlive: true,
       };
       
-      console.log('Добавление человека:', personData);
       await personApi.create(personData);
-      await loadData(); // Перезагружаем данные
+      await loadData();
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Ошибка добавления:', error);
+      alert('Ошибка: ' + error.message);
     }
   };
 
@@ -84,27 +97,23 @@ function App() {
     }
     
     try {
-      console.log('Создание отношения:', newRelationship);
       await relationshipApi.create({
         person1Id: parseInt(newRelationship.person1Id),
         person2Id: parseInt(newRelationship.person2Id),
         type: newRelationship.type
       });
       
-      // Сброс формы
       setNewRelationship({
         person1Id: '',
         person2Id: '',
         type: 'parent'
       });
       
-      // Обновление данных
       await loadData();
-      
-      alert('Отношение успешно создано!');
+      alert('Отношение создано!');
       
     } catch (error: any) {
-      console.error('Ошибка создания отношения:', error);
+      console.error('Ошибка:', error);
       alert(`Ошибка: ${error.response?.data?.message || error.message}`);
     }
   };
@@ -113,38 +122,52 @@ function App() {
     if (!confirm('Удалить это отношение?')) return;
     
     try {
-      console.log('Удаление отношения ID:', id);
       await relationshipApi.delete(id);
-      await loadData(); // Перезагружаем данные
+      await loadData();
       alert('Отношение удалено!');
     } catch (error: any) {
       console.error('Ошибка удаления отношения:', error);
-      alert(`Ошибка: ${error.response?.data?.message || error.message}`);
+      alert(`Ошибка: ${error.message}`);
     }
   };
 
   const deletePerson = async (id: number) => {
-    if (!confirm('Удалить этого человека и все его отношения?')) return;
+    if (!confirm('Удалить этого человека?')) return;
     
     try {
       console.log('Удаление человека ID:', id);
       const response = await personApi.delete(id);
-      console.log('Ответ от API:', response.data);
+      console.log('Результат удаления:', response.data);
       
       if (response.data.success) {
-        // Удаляем человека из состояния сразу
-        setPersons(prev => prev.filter(p => p.id !== id));
+        // Обновляем списки
+        const updatedPersons = persons.filter(p => p.id !== id);
+        setPersons(updatedPersons);
+        setFilteredPersons(updatedPersons);
+        
         // Перезагружаем отношения
-        await loadData();
+        const relResponse = await relationshipApi.getAll();
+        if (relResponse.data.success) {
+          setRelationships(relResponse.data.data);
+        }
         alert('Человек удален!');
       } else {
-        alert('Ошибка удаления: ' + response.data.message);
+        alert('Ошибка: ' + response.data.message);
       }
       
     } catch (error: any) {
-      console.error('Ошибка удаления человека:', error);
+      console.error('Ошибка удаления:', error);
       alert(`Ошибка: ${error.response?.data?.message || error.message}`);
     }
+  };
+
+  const handleEditPerson = (person: Person) => {
+    setEditingPerson(person);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSavePerson = async () => {
+    await loadData();
   };
 
   const getPersonName = (id: number) => {
@@ -162,24 +185,32 @@ function App() {
     }
   };
 
-  // Функции для редактирования
-  const handleEditPerson = (person: Person) => {
-    setEditingPerson(person);
-    setIsEditModalOpen(true);
-  };
-
-  const handleSavePerson = async () => {
-    await loadData(); // Перезагружаем данные после сохранения
-  };
-
   if (loading) {
     return (
       <div style={{ 
-        padding: '40px', 
+        padding: '50px', 
         textAlign: 'center',
-        fontSize: '18px'
+        fontFamily: 'Arial, sans-serif'
       }}>
-        Загрузка данных...
+        <h2>Загрузка данных...</h2>
+        <p>Проверка подключения к серверу...</p>
+        <p style={{ fontSize: '14px', color: '#666' }}>
+          {error ? `Ошибка: ${error}` : 'Ожидание ответа от backend...'}
+        </p>
+        <button 
+          onClick={loadData}
+          style={{
+            padding: '10px 20px',
+            marginTop: '20px',
+            background: '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Попробовать снова
+        </button>
       </div>
     );
   }
@@ -191,17 +222,36 @@ function App() {
       maxWidth: '1400px',
       margin: '0 auto'
     }}>
-      <h1 style={{ color: '#2e7d32', marginBottom: '10px' }}>🌳 Genealogy App</h1>
-      <p style={{ color: '#666', marginBottom: '30px' }}>Управление генеалогическим древом</p>
+      <h1 style={{ color: '#2e7d32' }}>🌳 Genealogy App</h1>
+      
+      {error && (
+        <div style={{
+          padding: '15px',
+          background: '#ffebee',
+          color: '#c62828',
+          borderRadius: '4px',
+          marginBottom: '20px'
+        }}>
+          <strong>Ошибка:</strong> {error}
+          <button 
+            onClick={loadData}
+            style={{
+              marginLeft: '20px',
+              padding: '5px 10px',
+              background: '#c62828',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Повторить
+          </button>
+        </div>
+      )}
 
       {/* Табы */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '10px', 
-        marginBottom: '30px',
-        borderBottom: '2px solid #e0e0e0',
-        paddingBottom: '10px'
-      }}>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
         <button
           onClick={() => setActiveTab('persons')}
           style={{
@@ -214,7 +264,7 @@ function App() {
             fontWeight: activeTab === 'persons' ? 'bold' : 'normal'
           }}
         >
-          👥 Люди ({persons.length})
+          👥 Люди ({filteredPersons.length}/{persons.length})
         </button>
         <button
           onClick={() => setActiveTab('relationships')}
@@ -230,185 +280,39 @@ function App() {
         >
           🔗 Отношения ({relationships.length})
         </button>
+        <button
+          onClick={() => setActiveTab('tree')}
+          style={{
+            padding: '10px 20px',
+            background: activeTab === 'tree' ? '#4CAF50' : '#f5f5f5',
+            color: activeTab === 'tree' ? 'white' : '#333',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'tree' ? 'bold' : 'normal'
+          }}
+        >
+          🌳 Дерево ({persons.length})
+        </button>
       </div>
 
-      {/* Контент табов */}
-      {activeTab === 'persons' ? (
+      {/* Контент */}
+      {activeTab === 'persons' && (
         <div>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '20px'
-          }}>
-            <h2>Управление людьми</h2>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                onClick={addTestPerson}
-                style={{
-                  padding: '10px 20px',
-                  background: '#2196F3',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                + Добавить тестового человека
-              </button>
-              <button 
-                onClick={loadData}
-                style={{
-                  padding: '10px 20px',
-                  background: '#FF9800',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                🔄 Обновить
-              </button>
-            </div>
-          </div>
-
-          {persons.length === 0 ? (
-            <div style={{ 
-              textAlign: 'center', 
-              padding: '40px 20px',
-              background: '#f9f9f9',
-              borderRadius: '8px'
-            }}>
-              <p>База данных пуста</p>
-              <p>Добавьте первого человека</p>
-            </div>
-          ) : (
-            <div style={{ 
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-              gap: '20px'
-            }}>
-              {persons.map(person => (
-                <div 
-                  key={person.id}
-                  style={{
-                    padding: '20px',
-                    background: '#f5f5f5',
-                    borderRadius: '8px',
-                    border: '1px solid #ddd',
-                    position: 'relative'
-                  }}
-                >
-                  {/* Действия с карточкой */}
-                  <div style={{
-                    position: 'absolute',
-                    top: '15px',
-                    right: '15px',
-                    display: 'flex',
-                    gap: '10px'
-                  }}>
-                    <button
-                      onClick={() => handleEditPerson(person)}
-                      style={{
-                        padding: '6px 12px',
-                        background: '#4CAF50',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
-                      title="Редактировать"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={() => deletePerson(person.id)}
-                      style={{
-                        padding: '6px 12px',
-                        background: '#f44336',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
-                      title="Удалить"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-
-                  <h3 style={{ marginBottom: '10px', paddingRight: '80px' }}>
-                    {person.firstName} {person.middleName || ''} {person.lastName}
-                  </h3>
-                  
-                  <div style={{ fontSize: '14px', color: '#666' }}>
-                    <p><strong>ID:</strong> {person.id}</p>
-                    <p><strong>Пол:</strong> {person.gender === 'male' ? '♂ Мужской' : person.gender === 'female' ? '♀ Женский' : 'Не указан'}</p>
-                    <p><strong>Статус:</strong> 
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        background: person.isAlive ? '#c8e6c9' : '#ffcdd2',
-                        color: person.isAlive ? '#2e7d32' : '#c62828',
-                        marginLeft: '8px',
-                        fontSize: '12px'
-                      }}>
-                        {person.isAlive ? 'Жив/а' : 'Умер/ла'}
-                      </span>
-                    </p>
-                    
-                    {person.birthDate && (
-                      <p><strong>Родился:</strong> {new Date(person.birthDate).toLocaleDateString('ru-RU')}</p>
-                    )}
-                    
-                    {person.birthPlace && (
-                      <p><strong>Место рождения:</strong> {person.birthPlace}</p>
-                    )}
-                    
-                    {person.deathDate && (
-                      <p><strong>Умер:</strong> {new Date(person.deathDate).toLocaleDateString('ru-RU')}</p>
-                    )}
-                    
-                    {person.biography && (
-                      <div style={{ 
-                        marginTop: '10px', 
-                        padding: '10px',
-                        background: 'white',
-                        borderRadius: '4px',
-                        border: '1px solid #eee'
-                      }}>
-                        <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.4' }}>
-                          {person.biography.length > 100 
-                            ? `${person.biography.substring(0, 100)}...` 
-                            : person.biography}
-                        </p>
-                      </div>
-                    )}
-                    
-                    <p style={{ marginTop: '10px', fontSize: '12px', color: '#999' }}>
-                      <strong>Добавлен:</strong> {new Date(person.createdAt).toLocaleDateString('ru-RU')}
-                      {person.updatedAt !== person.createdAt && (
-                        <span> (обновлен: {new Date(person.updatedAt).toLocaleDateString('ru-RU')})</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '20px'
-          }}>
-            <h2>Управление отношениями</h2>
+          <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              onClick={addTestPerson}
+              style={{
+                padding: '10px 20px',
+                background: '#2196F3',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              + Добавить тестового человека
+            </button>
             <button 
               onClick={loadData}
               style={{
@@ -423,20 +327,37 @@ function App() {
               🔄 Обновить
             </button>
           </div>
-          
-          {/* Форма создания отношения */}
+
+          {/* Компонент поиска */}
+          <SearchBar 
+            persons={persons}
+            onSearchResults={setFilteredPersons}
+            placeholder="Поиск по имени, фамилии, месту рождения..."
+          />
+
+          {/* Список людей с результатами поиска */}
+          <PersonList 
+            persons={filteredPersons}
+            onEdit={handleEditPerson}
+            onDelete={deletePerson}
+            onRefresh={loadData}
+          />
+        </div>
+      )}
+
+      {activeTab === 'relationships' && (
+        <div>
           <div style={{ 
             background: '#e8f5e9', 
             padding: '20px', 
             borderRadius: '8px',
-            marginBottom: '30px'
+            marginBottom: '20px'
           }}>
-            <h3 style={{ marginBottom: '15px' }}>Создать новое отношение</h3>
-            
+            <h3>Создать новое отношение</h3>
             <div style={{ 
-              display: 'grid',
+              display: 'grid', 
               gridTemplateColumns: '1fr 1fr 1fr auto',
-              gap: '15px',
+              gap: '10px',
               alignItems: 'end'
             }}>
               <div>
@@ -448,16 +369,14 @@ function App() {
                   onChange={(e) => setNewRelationship({...newRelationship, person1Id: e.target.value})}
                   style={{
                     width: '100%',
-                    padding: '10px',
+                    padding: '8px',
                     borderRadius: '4px',
                     border: '1px solid #ccc'
                   }}
                 >
                   <option value="">Выберите...</option>
-                  {persons.map(person => (
-                    <option key={person.id} value={person.id}>
-                      {person.firstName} {person.lastName} (ID: {person.id})
-                    </option>
+                  {persons.map(p => (
+                    <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
                   ))}
                 </select>
               </div>
@@ -471,7 +390,7 @@ function App() {
                   onChange={(e) => setNewRelationship({...newRelationship, type: e.target.value as any})}
                   style={{
                     width: '100%',
-                    padding: '10px',
+                    padding: '8px',
                     borderRadius: '4px',
                     border: '1px solid #ccc'
                   }}
@@ -491,18 +410,16 @@ function App() {
                   onChange={(e) => setNewRelationship({...newRelationship, person2Id: e.target.value})}
                   style={{
                     width: '100%',
-                    padding: '10px',
+                    padding: '8px',
                     borderRadius: '4px',
                     border: '1px solid #ccc'
                   }}
                 >
                   <option value="">Выберите...</option>
                   {persons
-                    .filter(person => person.id.toString() !== newRelationship.person1Id)
-                    .map(person => (
-                      <option key={person.id} value={person.id}>
-                        {person.firstName} {person.lastName} (ID: {person.id})
-                      </option>
+                    .filter(p => p.id.toString() !== newRelationship.person1Id)
+                    .map(p => (
+                      <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
                     ))
                   }
                 </select>
@@ -517,7 +434,7 @@ function App() {
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  height: '40px'
+                  height: '38px'
                 }}
               >
                 Создать
@@ -525,93 +442,174 @@ function App() {
             </div>
           </div>
 
-          {/* Список отношений */}
-          <div>
-            <h3 style={{ marginBottom: '15px' }}>Существующие отношения</h3>
-            
-            {relationships.length === 0 ? (
-              <div style={{ 
-                textAlign: 'center', 
-                padding: '40px 20px',
-                background: '#f9f9f9',
-                borderRadius: '8px'
-              }}>
-                <p>Отношений еще нет</p>
-                <p>Создайте первое отношение используя форму выше</p>
-              </div>
-            ) : (
-              <div style={{ 
-                overflowX: 'auto',
-                background: 'white',
-                borderRadius: '8px',
-                border: '1px solid #ddd'
-              }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: '#f5f5f5' }}>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>ID</th>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Первый человек</th>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Отношение</th>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Второй человек</th>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Создано</th>
-                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {relationships.map(rel => (
-                      <tr key={rel.id} style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={{ padding: '12px' }}>{rel.id}</td>
-                        <td style={{ padding: '12px' }}>
-                          {getPersonName(rel.person1Id)}
-                          <div style={{ fontSize: '12px', color: '#666' }}>ID: {rel.person1Id}</div>
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          <span style={{
-                            padding: '4px 8px',
-                            background: 
-                              rel.type === 'parent' ? '#e3f2fd' :
-                              rel.type === 'spouse' ? '#f3e5f5' :
-                              '#e8f5e9',
-                            color: 
-                              rel.type === 'parent' ? '#1565c0' :
-                              rel.type === 'spouse' ? '#7b1fa2' :
-                              '#2e7d32',
-                            borderRadius: '4px',
-                            fontWeight: 'bold'
-                          }}>
-                            {getRelationshipTypeText(rel.type)}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          {getPersonName(rel.person2Id)}
-                          <div style={{ fontSize: '12px', color: '#666' }}>ID: {rel.person2Id}</div>
-                        </td>
-                        <td style={{ padding: '12px', fontSize: '14px', color: '#666' }}>
-                          {new Date(rel.createdAt).toLocaleDateString('ru-RU')}
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          <button
-                            onClick={() => deleteRelationship(rel.id)}
-                            style={{
-                              padding: '6px 12px',
-                              background: '#f44336',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '14px'
-                            }}
-                          >
-                            Удалить
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          <div style={{ marginBottom: '20px' }}>
+            <button 
+              onClick={loadData}
+              style={{
+                padding: '10px 20px',
+                background: '#FF9800',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              🔄 Обновить
+            </button>
           </div>
+
+          {relationships.length === 0 ? (
+            <div style={{ 
+              textAlign: 'center', 
+              padding: '50px',
+              background: '#f5f5f5',
+              borderRadius: '8px'
+            }}>
+              <p>Отношений пока нет. Создайте первое отношение!</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f0f0f0' }}>
+                    <th style={{ padding: '10px', textAlign: 'left' }}>ID</th>
+                    <th style={{ padding: '10px', textAlign: 'left' }}>Первый человек</th>
+                    <th style={{ padding: '10px', textAlign: 'left' }}>Отношение</th>
+                    <th style={{ padding: '10px', textAlign: 'left' }}>Второй человек</th>
+                    <th style={{ padding: '10px', textAlign: 'left' }}>Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {relationships.map(rel => (
+                    <tr key={rel.id} style={{ borderBottom: '1px solid #ddd' }}>
+                      <td style={{ padding: '10px' }}>{rel.id}</td>
+                      <td style={{ padding: '10px' }}>{getPersonName(rel.person1Id)}</td>
+                      <td style={{ padding: '10px' }}>
+                        <span style={{
+                          padding: '4px 8px',
+                          background: 
+                            rel.type === 'parent' ? '#e3f2fd' :
+                            rel.type === 'spouse' ? '#f3e5f5' :
+                            '#e8f5e9',
+                          color: 
+                            rel.type === 'parent' ? '#1565c0' :
+                            rel.type === 'spouse' ? '#7b1fa2' :
+                            '#2e7d32',
+                          borderRadius: '4px'
+                        }}>
+                          {getRelationshipTypeText(rel.type)}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px' }}>{getPersonName(rel.person2Id)}</td>
+                      <td style={{ padding: '10px' }}>
+                        <button
+                          onClick={() => deleteRelationship(rel.id)}
+                          style={{
+                            padding: '5px 10px',
+                            background: '#f44336',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Удалить
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'tree' && (
+        <div>
+          <div style={{ marginBottom: '20px' }}>
+            <h2>🌳 Семейное дерево</h2>
+            <p style={{ color: '#666' }}>
+              Интерактивное дерево: кликайте на людей, используйте кнопки для смены ориентации, 
+              колесико мыши для масштабирования, перетаскивайте для навигации.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+              <button 
+                onClick={loadData}
+                style={{
+                  padding: '8px 16px',
+                  background: '#FF9800',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                🔄 Обновить данные
+              </button>
+            </div>
+          </div>
+          
+          {persons.length < 2 ? (
+            <div style={{ 
+              textAlign: 'center', 
+              padding: '50px',
+              background: '#f5f5f5',
+              borderRadius: '8px'
+            }}>
+              <p>Добавьте больше людей и создайте отношения, чтобы увидеть дерево</p>
+              <button
+                onClick={() => setActiveTab('persons')}
+                style={{
+                  marginTop: '10px',
+                  padding: '10px 20px',
+                  background: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Перейти к добавлению людей
+              </button>
+            </div>
+          ) : relationships.length === 0 ? (
+            <div style={{ 
+              textAlign: 'center', 
+              padding: '50px',
+              background: '#f5f5f5',
+              borderRadius: '8px'
+            }}>
+              <p>Есть люди, но нет отношений. Создайте отношения между людьми!</p>
+              <button
+                onClick={() => setActiveTab('relationships')}
+                style={{
+                  marginTop: '10px',
+                  padding: '10px 20px',
+                  background: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Перейти к созданию отношений
+              </button>
+            </div>
+          ) : (
+            <FamilyTree 
+              persons={persons}
+              relationships={relationships}
+              onPersonClick={(id) => {
+                console.log('Выбран человек:', id);
+                const person = persons.find(p => p.id === id);
+                if (person) {
+                  alert(`Выбран: ${person.firstName} ${person.lastName}`);
+                }
+              }}
+              height="700px"
+            />
+          )}
         </div>
       )}
 
@@ -625,71 +623,14 @@ function App() {
 
       {/* Информационная панель */}
       <div style={{ 
-        marginTop: '40px', 
-        padding: '20px', 
-        background: '#f5f5f5',
-        borderRadius: '8px',
-        borderTop: '3px solid #4CAF50'
+        marginTop: '30px', 
+        padding: '15px', 
+        background: '#e8f5e9',
+        borderRadius: '4px',
+        fontSize: '14px',
+        color: '#2e7d32'
       }}>
-        <h3 style={{ marginBottom: '15px' }}>📊 Системная информация</h3>
-        <div style={{ 
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '20px'
-        }}>
-          <div>
-            <p style={{ fontWeight: 'bold', color: '#333' }}>База данных</p>
-            <p>Людей: {persons.length}</p>
-            <p>Отношений: {relationships.length}</p>
-          </div>
-          <div>
-            <p style={{ fontWeight: 'bold', color: '#333' }}>Backend API</p>
-            <p>📍 http://localhost:3001</p>
-            <p>✅ /api/persons</p>
-            <p>✅ /api/relationships</p>
-          </div>
-          <div>
-            <p style={{ fontWeight: 'bold', color: '#333' }}>Отладка</p>
-            <button 
-              onClick={() => {
-                console.log('Persons:', persons);
-                console.log('Relationships:', relationships);
-                console.log('API URL:', 'http://localhost:3001/api');
-              }}
-              style={{
-                padding: '8px 16px',
-                background: '#FF9800',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Лог в консоль
-            </button>
-          </div>
-        </div>
-        
-        <div style={{ 
-          marginTop: '20px', 
-          paddingTop: '15px', 
-          borderTop: '1px solid #ddd',
-          fontSize: '14px',
-          color: '#666'
-        }}>
-          <p><strong>Отладка:</strong> Откройте консоль браузера (F12) для просмотра логов операций.</p>
-        </div>
-      </div>
-      
-      <div style={{ 
-        marginTop: '20px', 
-        textAlign: 'center',
-        fontSize: '12px',
-        color: '#999',
-        padding: '15px',
-        borderTop: '1px solid #eee'
-      }}>
-        <p>Genealogy App v0.3.1 • Редактирование и удаление • {new Date().toLocaleDateString('ru-RU')}</p>
+        <strong>📊 Статистика:</strong> 👥 Людей: {persons.length} (показано: {filteredPersons.length}) | 🔗 Отношений: {relationships.length} | 🌳 Версия: 0.5.0 (с поиском и фильтрацией)
       </div>
     </div>
   );
