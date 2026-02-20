@@ -6,13 +6,13 @@ import { v4 as uuidv4 } from 'uuid';
 import Photo from '../models/Photo';
 import Person from '../models/Person';
 
-// Создаем директорию для загрузок, если её нет
+// Создаем директорию для загрузок
 const UPLOAD_DIR = path.join(__dirname, '../../uploads/photos');
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-// Настройка multer для сохранения файлов
+// Настройка multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, UPLOAD_DIR);
@@ -30,7 +30,6 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const mimetype = allowedTypes.test(file.mimetype);
-    
     if (mimetype) {
       cb(null, true);
     } else {
@@ -43,7 +42,6 @@ const upload = multer({
 export const uploadPhoto = async (req: Request, res: Response): Promise<void> => {
   try {
     const { personId } = req.params;
-    const { caption } = req.body;
     const file = req.file;
 
     if (!file) {
@@ -58,26 +56,21 @@ export const uploadPhoto = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Если это первое фото, делаем его главным
-    const photoCount = await Photo.count({ where: { personId } });
-    const isMain = photoCount === 0;
-
-    // Сохраняем в базу данных
+    // Создаем запись в базе
     const photo = await Photo.create({
       personId: parseInt(personId),
       filename: file.filename,
       originalName: file.originalname,
       path: `/uploads/photos/${file.filename}`,
-      thumbnailPath: `/uploads/photos/${file.filename}`, // Пока используем то же фото
+      thumbnailPath: `/uploads/photos/${file.filename}`, // пока без миниатюры
       size: file.size,
       mimeType: file.mimetype,
-      isMain,
-      caption: caption || null,
+      isMain: false
     });
 
     res.status(201).json({
       success: true,
-      message: 'Фото загружено успешно',
+      message: 'Фото загружено',
       data: photo
     });
 
@@ -91,28 +84,17 @@ export const uploadPhoto = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
-// Получить все фото человека
+// Получить фото человека
 export const getPersonPhotos = async (req: Request, res: Response): Promise<void> => {
   try {
     const { personId } = req.params;
-    
     const photos = await Photo.findAll({
       where: { personId },
       order: [['isMain', 'DESC'], ['createdAt', 'DESC']]
     });
-
-    res.json({
-      success: true,
-      count: photos.length,
-      data: photos
-    });
-
+    res.json({ success: true, data: photos });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Ошибка получения фото',
-      error: error.message
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -120,7 +102,6 @@ export const getPersonPhotos = async (req: Request, res: Response): Promise<void
 export const deletePhoto = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-
     const photo = await Photo.findByPk(id);
     if (!photo) {
       res.status(404).json({ success: false, message: 'Фото не найдено' });
@@ -128,27 +109,19 @@ export const deletePhoto = async (req: Request, res: Response): Promise<void> =>
     }
 
     // Удаляем файл
-    const filePath = path.join(UPLOAD_DIR, photo.filename);
+    const filePath = path.join(UPLOAD_DIR, photo.get('filename') as string);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
 
-    // Удаляем запись из БД
     await photo.destroy();
-
-    res.json({
-      success: true,
-      message: 'Фото удалено успешно'
-    });
-
+    res.json({ success: true, message: 'Фото удалено' });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Ошибка удаления фото',
-      error: error.message
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 };
+
+export const uploadSingle = upload.single('photo');
 
 // Установить фото как главное
 export const setMainPhoto = async (req: Request, res: Response): Promise<void> => {
@@ -175,6 +148,3 @@ export const setMainPhoto = async (req: Request, res: Response): Promise<void> =
     });
   }
 };
-
-// Middleware для загрузки одного файла
-export const uploadSingle = upload.single('photo');
