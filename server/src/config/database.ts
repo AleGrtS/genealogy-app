@@ -10,11 +10,8 @@ const sequelize = new Sequelize({
   logging: (sql) => console.log('[SQL]', sql),
   define: {
     timestamps: true,
-    underscored: false,
-    freezeTableName: false
-  },
-  // Отключаем автоматическую синхронизацию
-  sync: { force: false, alter: false }
+    underscored: false
+  }
 });
 
 export default sequelize;

@@ -12,7 +12,8 @@ router.get('/:personId', photoController.getPersonPhotos);
 // DELETE /api/photos/:id - удалить фото
 router.delete('/:id', photoController.deletePhoto);
 
-// PUT /api/photos/:id/main - установить как главное
-router.put('/:id/main', photoController.setMainPhoto);
+// PUT /api/photos/:id/main - установить как главное (опционально)
+// Временно закомментируем, если метод не реализован
+// router.put('/:id/main', photoController.setMainPhoto);
 
 export default router;

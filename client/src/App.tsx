@@ -5,6 +5,7 @@ import EditPersonModal from './components/EditPersonModal';
 import FamilyTree from './components/FamilyTree';
 import SearchBar from './components/SearchBar';
 import PersonList from './components/PersonList';
+import Statistics from './components/Statistics';
 
 function App() {
   const [persons, setPersons] = useState<Person[]>([]);
@@ -12,7 +13,7 @@ function App() {
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'persons' | 'relationships' | 'tree'>('persons');
+  const [activeTab, setActiveTab] = useState<'persons' | 'relationships' | 'tree' | 'stats'>('persons');
   
   // Модальное окно редактирования
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
@@ -293,6 +294,20 @@ function App() {
           }}
         >
           🌳 Дерево ({persons.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('stats')}
+          style={{
+            padding: '10px 20px',
+            background: activeTab === 'stats' ? '#4CAF50' : '#f5f5f5',
+            color: activeTab === 'stats' ? 'white' : '#333',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'stats' ? 'bold' : 'normal'
+          }}
+        >
+          📊 Статистика
         </button>
       </div>
 
@@ -613,6 +628,10 @@ function App() {
         </div>
       )}
 
+      {activeTab === 'stats' && (
+        <Statistics persons={persons} relationships={relationships} />
+      )}
+
       {/* Модальное окно редактирования */}
       <EditPersonModal
         person={editingPerson}
@@ -630,7 +649,10 @@ function App() {
         fontSize: '14px',
         color: '#2e7d32'
       }}>
-        <strong>📊 Статистика:</strong> 👥 Людей: {persons.length} (показано: {filteredPersons.length}) | 🔗 Отношений: {relationships.length} | 🌳 Версия: 0.5.0 (с поиском и фильтрацией)
+        <strong>📊 Версия:</strong> 0.7.0 (с статистикой) | 
+        👥 Людей: {persons.length} | 
+        🔗 Отношений: {relationships.length} | 
+        📸 Фото: есть
       </div>
     </div>
   );

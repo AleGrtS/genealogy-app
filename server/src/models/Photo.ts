@@ -1,6 +1,5 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database';
-import Person from './Person';
 
 class Photo extends Model {
   public id!: string;
@@ -13,7 +12,8 @@ class Photo extends Model {
   public mimeType!: string;
   public isMain!: boolean;
   public caption?: string;
-  public uploadedAt!: Date;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
 }
 
 Photo.init({
@@ -26,7 +26,7 @@ Photo.init({
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
-      model: 'persons',  // Используем строку вместо Person
+      model: 'persons',
       key: 'id',
     },
   },
@@ -62,14 +62,10 @@ Photo.init({
     type: DataTypes.STRING,
     allowNull: true,
   },
-  uploadedAt: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
-  },
 }, {
   sequelize,
   tableName: 'photos',
-  timestamps: true,
+  timestamps: true, // Это создаст createdAt и updatedAt автоматически
 });
 
 export default Photo;

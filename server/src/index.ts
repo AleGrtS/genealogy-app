@@ -15,22 +15,18 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
+// CORS
 app.use(cors({
   origin: 'http://localhost:5173',
   credentials: true,
 }));
+
 app.use(express.json());
-
-// Статические файлы (для загруженных фото)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
-// API Routes
 app.use('/api/persons', personRoutes);
 app.use('/api/relationships', relationshipRoutes);
 app.use('/api/photos', photoRoutes);
 
-// Health check
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
@@ -41,15 +37,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Запуск сервера
 const startServer = async () => {
   try {
     await sequelize.authenticate();
     console.log('✅ Database connected');
     
-    // Синхронизируем модели (создаем таблицы если их нет)
-    await sequelize.sync({ alter: true });
-    console.log('✅ Database synchronized');
+    // Просто проверяем подключение, НЕ синхронизируем
+    console.log('📊 Tables are managed manually');
     
     app.listen(PORT, () => {
       console.log(`
@@ -61,7 +55,6 @@ const startServer = async () => {
          Persons:    /api/persons
          Relationships: /api/relationships
          Photos:     /api/photos
-         Uploads:    /uploads/[filename]
          Health:     /api/health
       ===============================
       `);
