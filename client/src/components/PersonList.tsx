@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Person } from '../services/api';
 import PhotoUpload from './PhotoUpload';
+import SmartRelationships from './SmartRelationships';
 import { useMobile } from '../hooks/useMobile';
 import config from '../config';
 
@@ -18,6 +19,7 @@ const PersonList: React.FC<PersonListProps> = ({
   onRefresh 
 }) => {
   const [selectedPersonForPhoto, setSelectedPersonForPhoto] = useState<Person | null>(null);
+  const [selectedPersonForRelations, setSelectedPersonForRelations] = useState<Person | null>(null);
   const [personPhotos, setPersonPhotos] = useState<Record<number, { mainPhoto?: string, count: number }>>({});
   const [loadingPhotos, setLoadingPhotos] = useState<Record<number, boolean>>({});
   const { isMobile } = useMobile();
@@ -33,7 +35,6 @@ const PersonList: React.FC<PersonListProps> = ({
     try {
       setLoadingPhotos(prev => ({ ...prev, [personId]: true }));
       
-      // Используем config.API_URL
       const response = await fetch(`${config.API_URL}/photos/${personId}`);
       const data = await response.json();
       
@@ -106,8 +107,7 @@ const PersonList: React.FC<PersonListProps> = ({
                 border: '1px solid #e0e0e0',
                 position: 'relative',
                 transition: 'all 0.2s ease',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                ...(isMobile ? { marginBottom: '5px' } : {})
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
               }}
             >
               {/* Фото профиля */}
@@ -141,7 +141,6 @@ const PersonList: React.FC<PersonListProps> = ({
                     </div>
                   ) : hasPhoto ? (
                     <img
-                      // Используем config.UPLOADS_URL
                       src={`${config.UPLOADS_URL}/photos/${hasPhoto}`}
                       alt={person.firstName}
                       style={{
@@ -249,13 +248,11 @@ const PersonList: React.FC<PersonListProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (window.confirm(`Удалить ${person.firstName} ${person.lastName}?`)) {
-                            onDelete(person.id);
-                          }
+                          setSelectedPersonForRelations(person);
                         }}
                         style={{
                           padding: '8px 16px',
-                          background: '#f44336',
+                          background: '#2196F3',
                           color: 'white',
                           border: 'none',
                           borderRadius: '6px',
@@ -264,7 +261,7 @@ const PersonList: React.FC<PersonListProps> = ({
                           flex: 1
                         }}
                       >
-                        🗑️ Удалить
+                        🔍 Родственники
                       </button>
                     </div>
                   </div>
@@ -290,12 +287,12 @@ const PersonList: React.FC<PersonListProps> = ({
                   gap: isMobile ? '8px' : '12px'
                 }}>
                   <div>
-                    <span style={{ color: '#777', fontSize: isMobile ? '13px' : '14px' }}>ID:</span>{' '}
+                    <span style={{ color: '#777' }}>ID:</span>{' '}
                     <span style={{ fontWeight: '500' }}>{person.id}</span>
                   </div>
                   
                   <div>
-                    <span style={{ color: '#777', fontSize: isMobile ? '13px' : '14px' }}>Пол:</span>{' '}
+                    <span style={{ color: '#777' }}>Пол:</span>{' '}
                     <span style={{ fontWeight: '500' }}>
                       {person.gender === 'male' ? '♂ Мужской' : 
                        person.gender === 'female' ? '♀ Женский' : 'Не указан'}
@@ -303,14 +300,14 @@ const PersonList: React.FC<PersonListProps> = ({
                   </div>
                   
                   <div>
-                    <span style={{ color: '#777', fontSize: isMobile ? '13px' : '14px' }}>Статус:</span>{' '}
+                    <span style={{ color: '#777' }}>Статус:</span>{' '}
                     <span style={{
                       display: 'inline-block',
                       padding: '3px 8px',
                       borderRadius: '12px',
                       background: person.isAlive ? '#e8f5e9' : '#ffebee',
                       color: person.isAlive ? '#2e7d32' : '#c62828',
-                      fontSize: isMobile ? '12px' : '13px',
+                      fontSize: '12px',
                       fontWeight: '500'
                     }}>
                       {person.isAlive ? 'Жив/а' : 'Умер/ла'}
@@ -319,22 +316,8 @@ const PersonList: React.FC<PersonListProps> = ({
                   
                   {person.birthDate && (
                     <div>
-                      <span style={{ color: '#777', fontSize: isMobile ? '13px' : '14px' }}>Родился:</span>{' '}
+                      <span style={{ color: '#777' }}>Родился:</span>{' '}
                       <span style={{ fontWeight: '500' }}>{new Date(person.birthDate).toLocaleDateString()}</span>
-                    </div>
-                  )}
-                  
-                  {person.birthPlace && (
-                    <div style={{ gridColumn: isMobile ? 'auto' : 'span 2' }}>
-                      <span style={{ color: '#777', fontSize: isMobile ? '13px' : '14px' }}>Место рождения:</span>{' '}
-                      <span style={{ fontWeight: '500' }}>{person.birthPlace}</span>
-                    </div>
-                  )}
-                  
-                  {person.deathDate && (
-                    <div>
-                      <span style={{ color: '#777', fontSize: isMobile ? '13px' : '14px' }}>Умер:</span>{' '}
-                      <span style={{ fontWeight: '500' }}>{new Date(person.deathDate).toLocaleDateString()}</span>
                     </div>
                   )}
                 </div>
@@ -373,6 +356,27 @@ const PersonList: React.FC<PersonListProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      setSelectedPersonForRelations(person);
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#2196F3',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="Умные отношения"
+                  >
+                    🔍 Связи
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (window.confirm(`Удалить ${person.firstName} ${person.lastName}?`)) {
                         onDelete(person.id);
                       }
@@ -406,6 +410,14 @@ const PersonList: React.FC<PersonListProps> = ({
           person={selectedPersonForPhoto}
           onClose={() => setSelectedPersonForPhoto(null)}
           onUploadComplete={handlePhotoUploadComplete}
+        />
+      )}
+
+      {/* Модальное окно умных отношений */}
+      {selectedPersonForRelations && (
+        <SmartRelationships
+          person={selectedPersonForRelations}
+          onClose={() => setSelectedPersonForRelations(null)}
         />
       )}
     </>
